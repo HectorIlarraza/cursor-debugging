@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 
-// Product component
 function Product({ item, addToCart }) {
   return (
-    <div>
+    <div className="product-card">
+      <img src={item.image} alt={item.name} className="product-image" />
       <h3>{item.name}</h3>
       <p>Price: ${item.price.toFixed(2)}</p>
       <button onClick={() => addToCart(item)}>Add to Cart</button>
@@ -11,15 +11,18 @@ function Product({ item, addToCart }) {
   );
 }
 
-// Shopping Cart component
-function ShoppingCart({ cartItems }) {
-  const total = cartItems
+function ShoppingCart({ cartItems, removeFromCart, clearCart, updateQuantity }) {
+  const subtotal = cartItems
     .reduce((acc, item) => acc + item.price * item.quantity, 0)
     .toFixed(2);
+
+  const savings = 150.00;
+  const total = (parseFloat(subtotal) - savings).toFixed(2);
 
   return (
     <div className="shopping-cart">
       <h2>Shopping Cart</h2>
+      <button onClick={clearCart} className="deselect-all">Deselect all items</button>
       {cartItems.length === 0 ? (
         <p className="empty-cart-message">Your cart is empty</p>
       ) : (
@@ -27,30 +30,59 @@ function ShoppingCart({ cartItems }) {
           <ul>
             {cartItems.map((item) => (
               <li key={item.id}>
-                <span className="item-name">{item.name}</span>
-                <span className="item-details">
-                  {item.quantity} x ${item.price.toFixed(2)}
-                </span>
+                <div className="item-image">
+                  <img src={item.image} alt={item.name} />
+                </div>
+                <div className="item-details">
+                  <span className="item-name">{item.name}</span>
+                  <span className="item-price">${item.price.toFixed(2)}</span>
+                  <span className="item-stock">In Stock</span>
+                  <span className="item-shipping">Eligible for FREE Shipping & FREE Returns</span>
+                  <div className="item-actions">
+                    <select
+                      value={item.quantity}
+                      onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))}
+                    >
+                      {[...Array(10).keys()].map(num => (
+                        <option key={num + 1} value={num + 1}>{num + 1}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => removeFromCart(item.id)}>Delete</button>
+                    <button>Save for later</button>
+                    <button>Compare with similar items</button>
+                    <button>Share</button>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
           <div className="cart-summary">
-            <p>
-              <span>Total Items:</span>
-              <span>{cartItems.length}</span>
+            <p className="subtotal">
+              <span>Subtotal ({cartItems.length} items):</span>
+              <span>${subtotal}</span>
             </p>
-            <p className="total-price">
-              <span>Total Price:</span>
-              <span>${total}</span>
-            </p>
+          </div>
+          <div className="cart-actions">
+            <button className="proceed-to-checkout">Proceed to checkout</button>
           </div>
         </>
       )}
+      <div className="cart-total">
+        <h3>Order Summary</h3>
+        <p><span>Items:</span><span>${subtotal}</span></p>
+        <p><span>Shipping & handling:</span><span>$0.00</span></p>
+        <p><span>Total before tax:</span><span>${subtotal}</span></p>
+        <p><span>Estimated tax to be collected:</span><span>$0.00</span></p>
+        <p className="order-total"><span>Order total:</span><span>${subtotal}</span></p>
+        <div className="gift-card-promo">
+          <p>Hector, get a $150 Amazon Gift Card instantly upon approval for Prime Visa</p>
+          <button>Learn more</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-// New Product Form component
 function NewProductForm({ addProduct }) {
   const [newProduct, setNewProduct] = useState({ name: "", price: "" });
 
@@ -60,7 +92,12 @@ function NewProductForm({ addProduct }) {
       alert("Please enter a valid name and price.");
       return;
     }
-    addProduct(newProduct);
+    addProduct({
+      ...newProduct,
+      price: parseFloat(newProduct.price),
+      id: Date.now(),
+      image: `https://picsum.photos/seed/${Date.now()}/200/300`
+    });
     setNewProduct({ name: "", price: "" });
   };
 
@@ -88,14 +125,16 @@ function NewProductForm({ addProduct }) {
   );
 }
 
-// Main App component
 function App() {
-  const [products, setProducts] = useState([
-    { id: 1, name: "Apple", price: 1 },
-    { id: 2, name: "Banana", price: 0.5 },
-    { id: 3, name: "Cherry", price: 2 },
-  ]);
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
+
+  useEffect(() => {
+    fetch('https://fakestoreapi.com/products?limit=5')
+      .then(res => res.json())
+      .then(data => setProducts(data))
+      .catch(error => console.error('Error fetching products:', error));
+  }, []);
 
   const addToCart = (item) => {
     const updatedCart = [...cart];
@@ -108,14 +147,24 @@ function App() {
     setCart(updatedCart);
   };
 
+  const removeFromCart = (itemId) => {
+    setCart(cart.filter(item => item.id !== itemId));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+  };
+
+  const updateQuantity = (itemId, newQuantity) => {
+    if (newQuantity < 1) return;
+    setCart(cart.map(item => 
+      item.id === itemId ? { ...item, quantity: newQuantity } : item
+    ));
+  };
+
   const addProduct = (product) => {
     setProducts([...products, product]);
   };
-
-  useEffect(() => {
-    console.log("Cart updated");
-    // Error 6: Incorrect dependency array
-  }, [cart, undefinedVariable]);
 
   return (
     <div className="container">
@@ -125,19 +174,18 @@ function App() {
 
       <div className="product-list">
         {products.map((product) => (
-          <div className="product-card" key={product.id}>
-            <Product item={product.name} addToCart={addToCart} />
-          </div>
+          <Product key={product.id} item={product} addToCart={addToCart} />
         ))}
       </div>
 
-      <ShoppingCart cartItems={cart} />
+      <ShoppingCart 
+        cartItems={cart} 
+        removeFromCart={removeFromCart} 
+        clearCart={clearCart}
+        updateQuantity={updateQuantity}
+      />
     </div>
   );
-
-  console.log(undefinedVariable);
 }
-
-const [state, setState] = useState();
 
 export default App;
